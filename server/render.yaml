@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: crelytic-api
+    runtime: node
+    region: ohio
+    plan: starter
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: https://3001.crelytic.ai,http://localhost:5173,http://localhost:3001
+      - key: CLAUDE_MODEL
+        value: claude-sonnet-4-20250514
