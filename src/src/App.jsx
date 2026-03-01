@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { propertyData } from './data/pga3001';
 import { isConnected } from './lib/supabase';
 import {
@@ -13,26 +13,15 @@ import {
 } from 'recharts';
 import AskAIPanel from './components/AskAIPanel';
 import DataUpload from './components/DataUpload';
-import AdminPanel from './components/AdminPanel';
-import LoginPage from './components/LoginPage';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-// ── Tabs (built dynamically based on role) ───────────────────
-function buildTabs(role) {
-  const tabs = [
-    { id: 'overview',   label: 'Overview' },
-    { id: 'leasing',    label: 'Leasing' },
-    { id: 'financials', label: 'Financials' },
-    { id: 'events',     label: 'Events' },
-  ];
-  if (role === 'owner' || role === 'admin') {
-    tabs.push({ id: 'data', label: 'Data' });
-  }
-  if (role === 'admin') {
-    tabs.push({ id: 'admin', label: 'Admin' });
-  }
-  return tabs;
-}
+// ── Tabs ─────────────────────────────────────────────────────
+const TABS = [
+  { id: 'overview',   label: 'Overview' },
+  { id: 'leasing',    label: 'Leasing' },
+  { id: 'financials', label: 'Financials' },
+  { id: 'events',     label: 'Events' },
+  { id: 'data',       label: 'Data' },
+];
 
 const fmt = {
   usd: v => `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
@@ -513,31 +502,50 @@ function EventsView({ events: liveEvents }) {
 
 // ── DATA TAB ─────────────────────────────────────────────────
 function DataView({ dataMode, uploadHistory, onRefresh }) {
-  const typeLabel = { management_report: 'Management Report', rent_roll: 'Rent Roll', budget: 'Budget' };
-  const typeIcon = { management_report: '📊', rent_roll: '📋', budget: '💰' };
-
   return (
     <div className="space-y-6">
-      {/* Header with connection indicator */}
-      <div className="flex items-center justify-between">
+      <div>
+        <h2 className="text-lg font-semibold text-white mb-1">Data Management</h2>
+        <p className="text-xs text-jll-muted">Supabase-backed data pipeline with snapshot versioning. Upload monthly management reports and rent rolls.</p>
+      </div>
+
+      {/* Connection Status */}
+      <div className="rounded-xl border border-jll-border bg-jll-card p-4 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-white mb-1">Upload & Manage Data</h2>
-          <p className="text-xs text-jll-muted">Upload monthly financials, rent rolls, and budgets. AI extracts and structures the data automatically.</p>
+          <p className="text-xs text-jll-muted uppercase tracking-wider mb-0.5">Data Source</p>
+          <p className="text-sm font-semibold text-white">
+            {dataMode === 'live' ? 'Supabase (Live)' : 'Static Data (pga3001.js)'}
+          </p>
+          <p className="text-xs text-jll-muted mt-0.5">
+            Project: erstuajvfklxmmvoxijq | Region: us-east-1
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
+          <span className={`text-xs border rounded px-2 py-0.5 font-medium ${
             dataMode === 'live'
-              ? 'bg-green-500/15 text-green-400 border border-green-500/30'
-              : 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
+              ? 'text-green-300 border-green-500/40 bg-green-500/10'
+              : 'text-yellow-300 border-yellow-500/40 bg-yellow-500/10'
           }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${dataMode === 'live' ? 'bg-green-400' : 'bg-yellow-400'}`} />
-            {dataMode === 'live' ? 'Live' : 'Demo'}
+            {dataMode === 'live' ? 'CONNECTED' : 'FALLBACK'}
           </span>
           <button onClick={onRefresh}
-            className="px-3 py-1.5 rounded-lg border border-jll-accent/40 bg-jll-accent/10 text-jll-accent text-xs font-semibold hover:bg-jll-accent/20 transition-all">
+            className="px-3 py-1 rounded-lg border border-jll-accent/40 bg-jll-accent/10 text-jll-accent text-xs font-semibold hover:bg-jll-accent/20 transition-all">
             Refresh
           </button>
         </div>
+      </div>
+
+      {/* Database Tables */}
+      <div className="rounded-xl border border-jll-border bg-jll-card p-5">
+        <h3 className="text-sm font-semibold text-white mb-3">Database Schema</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {['upload_snapshots', 'portfolio_snapshot', 'rent_roll', 'income_statement', 'budget', 'lease_events', 'expiry_profile', 'security_deposits', 'balance_sheet'].map(t => (
+            <div key={t} className="border border-jll-border/60 rounded-lg p-3 bg-jll-navy/30">
+              <p className="text-xs font-mono text-jll-accent">{t}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-jll-muted mt-3">7 active views with auto-deactivation trigger + RLS policies for authenticated & anon access.</p>
       </div>
 
       {/* Upload History */}
@@ -547,17 +555,13 @@ function DataView({ dataMode, uploadHistory, onRefresh }) {
           <div className="space-y-2">
             {uploadHistory.map((u, i) => (
               <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-jll-border/60 bg-jll-navy/30">
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">{typeIcon[u.upload_type] || '📄'}</span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm text-white font-medium">{u.file_name || 'Initial seed'}</p>
-                      {u.is_active && <Badge color="teal">Active</Badge>}
-                    </div>
-                    <p className="text-xs text-jll-muted mt-0.5">
-                      {typeLabel[u.upload_type] || u.upload_type} · {new Date(u.upload_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-jll-muted">{u.upload_type}</span>
+                    {u.is_active && <Badge color="teal">Active</Badge>}
                   </div>
+                  <p className="text-sm text-white font-medium mt-0.5">{u.file_name || 'Initial seed'}</p>
+                  <p className="text-xs text-jll-muted">{new Date(u.upload_date).toLocaleDateString()}</p>
                 </div>
               </div>
             ))}
@@ -569,11 +573,9 @@ function DataView({ dataMode, uploadHistory, onRefresh }) {
 }
 
 // ── MAIN APP ─────────────────────────────────────────────────
-function Dashboard() {
-  const { user, role, logout } = useAuth();
+export default function App() {
   const [tab, setTab] = useState('overview');
   const [aiOpen, setAiOpen] = useState(false);
-  const TABS = useMemo(() => buildTabs(role), [role]);
 
   // State: property data with Supabase override
   const [prop, setProp] = useState(staticData);
@@ -662,19 +664,15 @@ function Dashboard() {
               {dataMode === 'live' ? 'LIVE' : 'DEMO'}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <p className="text-xs text-jll-muted">{user?.email}</p>
-              <p className="text-xs text-jll-accent font-medium uppercase">{role}</p>
+              <p className="text-xs text-jll-muted">As of</p>
+              <p className="text-xs text-white font-mono">2026-01-31</p>
             </div>
             <button onClick={() => setAiOpen(true)}
               className="relative flex items-center gap-2 px-3 py-1.5 rounded-lg border border-jll-accent/40 bg-jll-accent/10 text-jll-accent text-xs font-semibold hover:bg-jll-accent/20 transition-all">
               <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-jll-accent animate-pulse-ring" />
               <span>Ask AI</span>
-            </button>
-            <button onClick={logout}
-              className="px-3 py-1.5 rounded-lg border border-jll-border text-jll-muted text-xs hover:text-white hover:border-jll-muted transition-colors">
-              Sign Out
             </button>
           </div>
         </div>
@@ -707,13 +705,16 @@ function Dashboard() {
         {tab === 'leasing' && <LeasingView derived={derived} />}
         {tab === 'financials' && <FinancialsView t12Data={t12Data} budgetData={budgetData} derived={derived} />}
         {tab === 'events' && <EventsView events={events} />}
-        {tab === 'data' && (role === 'owner' || role === 'admin') && (
+        {tab === 'data' && (
           <div className="space-y-6">
             <DataView dataMode={dataMode} uploadHistory={uploadHistory} onRefresh={refreshData} />
-            <DataUpload onReportExtracted={handleReportExtracted} onRentRollExtracted={handleRentRollExtracted} onBudgetExtracted={handleBudgetExtracted} />
+            <div className="rounded-xl border border-jll-border bg-jll-card p-5">
+              <h3 className="text-sm font-semibold text-white mb-1">AI Data Extraction</h3>
+              <p className="text-xs text-jll-muted mb-4">Upload management reports or rent rolls. The AI engine will parse, validate, and load into Supabase.</p>
+              <DataUpload onReportExtracted={handleReportExtracted} onRentRollExtracted={handleRentRollExtracted} onBudgetExtracted={handleBudgetExtracted} />
+            </div>
           </div>
         )}
-        {tab === 'admin' && role === 'admin' && <AdminPanel />}
 
         {/* Footer */}
         <footer className="mt-10 pt-6 border-t border-jll-border/40 text-center">
@@ -734,31 +735,4 @@ function Dashboard() {
       />
     </div>
   );
-}
-
-// ── AUTH WRAPPER ──────────────────────────────────────────────
-export default function App() {
-  return (
-    <AuthProvider>
-      <AuthGate />
-    </AuthProvider>
-  );
-}
-
-function AuthGate() {
-  const { session, loading, login } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-jll-navy">
-        <div className="text-jll-accent text-sm animate-pulse">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!session) {
-    return <LoginPage onLogin={login} />;
-  }
-
-  return <Dashboard />;
 }

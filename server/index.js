@@ -15,6 +15,7 @@ import { MANAGEMENT_REPORT_SYSTEM, MANAGEMENT_REPORT_USER } from './prompts/mana
 import { RENT_ROLL_SYSTEM, RENT_ROLL_USER } from './prompts/rentRoll.js';
 import { BUDGET_SYSTEM, BUDGET_USER } from './prompts/budget.js';
 import { buildChatMessages } from './prompts/chat.js';
+import { createClient } from '@supabase/supabase-js';
 
 // ── Config ───────────────────────────────────────────────────
 const PORT = process.env.PORT || 3333;
@@ -24,6 +25,13 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,h
   .map(s => s.trim());
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
 const MAX_TOKENS = 16000;
+
+// ── Supabase Admin (service role — server-side only) ────────
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://erstuajvfklxmmvoxijq.supabase.co';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAdmin = SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  : null;
 
 // ── Express setup ────────────────────────────────────────────
 const app = express();
@@ -36,8 +44,8 @@ app.use(cors({
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
     cb(new Error(`CORS: origin ${origin} not allowed`));
   },
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: '5mb' }));
 
@@ -212,6 +220,107 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// ── Admin: JWT verification helper ──────────────────────────
+async function verifyAdminJWT(req) {
+  if (!supabaseAdmin) throw new Error('Supabase admin not configured');
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) throw new Error('No authorization token');
+
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !user) throw new Error('Invalid token');
+
+  const { data: profile } = await supabaseAdmin
+    .from('user_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (profile?.role !== 'admin') throw new Error('Admin access required');
+  return user;
+}
+
+// ── Admin: Create user ──────────────────────────────────────
+app.post('/api/admin/create-user', async (req, res) => {
+  try {
+    const adminUser = await verifyAdminJWT(req);
+    const { email, password, role, display_name } = req.body;
+
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    if (!['admin', 'owner', 'read'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+    if (error) return res.status(400).json({ error: error.message });
+
+    // Trigger creates profile with role='read', now update to requested role
+    await supabaseAdmin
+      .from('user_profiles')
+      .update({ role, display_name: display_name || null, created_by: adminUser.id })
+      .eq('id', data.user.id);
+
+    console.log(`[admin] User created: ${email} (${role}) by ${adminUser.email}`);
+    res.json({ user: { id: data.user.id, email }, role });
+  } catch (err) {
+    console.error('[admin/create-user]', err.message);
+    res.status(err.message === 'Admin access required' ? 403 : 500).json({ error: err.message });
+  }
+});
+
+// ── Admin: List users ───────────────────────────────────────
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    await verifyAdminJWT(req);
+    const { data, error } = await supabaseAdmin
+      .from('user_profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) return res.status(400).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    console.error('[admin/users]', err.message);
+    res.status(err.message === 'Admin access required' ? 403 : 500).json({ error: err.message });
+  }
+});
+
+// ── Admin: Update user role ─────────────────────────────────
+app.put('/api/admin/users/:id/role', async (req, res) => {
+  try {
+    await verifyAdminJWT(req);
+    const { role } = req.body;
+    if (!['admin', 'owner', 'read'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+
+    const { error } = await supabaseAdmin
+      .from('user_profiles')
+      .update({ role, updated_at: new Date().toISOString() })
+      .eq('id', req.params.id);
+    if (error) return res.status(400).json({ error: error.message });
+
+    console.log(`[admin] Role updated: ${req.params.id} → ${role}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[admin/update-role]', err.message);
+    res.status(err.message === 'Admin access required' ? 403 : 500).json({ error: err.message });
+  }
+});
+
+// ── Admin: Delete user ──────────────────────────────────────
+app.delete('/api/admin/users/:id', async (req, res) => {
+  try {
+    await verifyAdminJWT(req);
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(req.params.id);
+    if (error) return res.status(400).json({ error: error.message });
+
+    console.log(`[admin] User deleted: ${req.params.id}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[admin/delete-user]', err.message);
+    res.status(err.message === 'Admin access required' ? 403 : 500).json({ error: err.message });
+  }
+});
+
 // ── Start ────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n  CRElytic API Server`);
@@ -224,5 +333,10 @@ app.listen(PORT, () => {
   console.log(`    POST /api/extract/management-report`);
   console.log(`    POST /api/extract/rent-roll`);
   console.log(`    POST /api/extract/budget`);
-  console.log(`    POST /api/chat\n`);
+  console.log(`    POST /api/chat`);
+  console.log(`  Admin:     ${supabaseAdmin ? '✓ configured' : '✗ no service key'}`);
+  console.log(`    POST /api/admin/create-user`);
+  console.log(`    GET  /api/admin/users`);
+  console.log(`    PUT  /api/admin/users/:id/role`);
+  console.log(`    DELETE /api/admin/users/:id\n`);
 });
