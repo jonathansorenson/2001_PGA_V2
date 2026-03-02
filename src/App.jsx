@@ -14,6 +14,7 @@ import {
 import AskAIPanel from './components/AskAIPanel';
 import DataUpload from './components/DataUpload';
 import AdminPanel from './components/AdminPanel';
+import FloorplanView from './components/FloorplanView';
 import LoginPage from './components/LoginPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -21,6 +22,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 function buildTabs(role) {
   const tabs = [
     { id: 'overview',   label: 'Overview' },
+    { id: 'floorplan',  label: 'Floorplan' },
     { id: 'leasing',    label: 'Leasing' },
     { id: 'financials', label: 'Financials' },
     { id: 'events',     label: 'Events' },
@@ -704,6 +706,7 @@ function Dashboard() {
 
         {/* Tab content */}
         {tab === 'overview' && <OverviewView prop={prop} derived={derived} t12Data={t12Data} budgetData={budgetData} />}
+        {tab === 'floorplan' && <FloorplanView leases={leases} />}
         {tab === 'leasing' && <LeasingView derived={derived} />}
         {tab === 'financials' && <FinancialsView t12Data={t12Data} budgetData={budgetData} derived={derived} />}
         {tab === 'events' && <EventsView events={events} />}
