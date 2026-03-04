@@ -144,6 +144,65 @@ export async function getSecurityDeposits() {
   return data;
 }
 
+// ── READ: Debt schedule ───────────────────────────────────
+export async function getDebtSchedule() {
+  if (!isConnected()) return null;
+  const { data, error } = await supabase
+    .from('active_debt_schedule')
+    .select('*');
+  if (error || !data?.length) return null;
+  const loans = data.map(r => ({
+    loanName:          r.loan_name,
+    lender:            r.lender,
+    originalAmount:    Number(r.original_amount || 0),
+    currentBalance:    Number(r.current_balance || 0),
+    interestRate:      Number(r.interest_rate || 0),
+    rateType:          r.rate_type || 'Fixed',
+    spread:            r.spread ? Number(r.spread) : null,
+    maturityDate:      r.maturity_date,
+    originationDate:   r.origination_date,
+    amortization:      r.amortization || '30-year',
+    isIO:              r.is_io || false,
+    annualDebtService: Number(r.annual_debt_service || 0),
+    monthlyPayment:    Number(r.monthly_payment || 0),
+    loanType:          r.loan_type || 'Conventional',
+    prepaymentPenalty: r.prepayment_penalty,
+    rateCap:           r.rate_cap,
+  }));
+  const totalDebt = loans.reduce((s, l) => s + l.currentBalance, 0);
+  const totalDS   = loans.reduce((s, l) => s + l.annualDebtService, 0);
+  const t12NOI    = 2100816; // fallback — will be overridden by live data
+  return {
+    isPlaceholder: false,
+    loans,
+    metrics: {
+      totalDebtOutstanding: totalDebt,
+      annualDebtService: totalDS,
+      ltv: null,  // computed by component
+      ltc: null,
+      dscr: totalDS > 0 ? t12NOI / totalDS : null,
+      debtYield: totalDebt > 0 ? (t12NOI / totalDebt) * 100 : null,
+      icr: null,
+      weightedAvgRate: loans.length ? loans.reduce((s, l) => s + l.interestRate * l.currentBalance, 0) / totalDebt : 0,
+    },
+  };
+}
+
+// ── READ: Expense breakdown ──────────────────────────────
+export async function getExpenseBreakdown() {
+  if (!isConnected()) return null;
+  const { data, error } = await supabase
+    .from('active_expense_breakdown')
+    .select('*')
+    .order('actual_amount', { ascending: false });
+  if (error || !data?.length) return null;
+  return data.map(r => ({
+    category: r.category,
+    actual:   Number(r.actual_amount || 0),
+    budget:   Number(r.budget_amount || 0),
+  }));
+}
+
 // ── READ: Upload history ───────────────────────────────────────
 export async function getUploadHistory() {
   if (!isConnected()) return [];
@@ -199,6 +258,24 @@ export async function insertBudget({ filename, rows }) {
         rows.slice(i, i + 6).map(r => ({ snapshot_id: sid, ...r }))
       );
     }
+  }
+  return { snapshotId: sid };
+}
+
+// ── WRITE: Insert debt schedule snapshot ──────────────────────
+export async function insertDebtSchedule({ filename, loans }) {
+  if (!isConnected()) return { error: 'Not connected' };
+  const { data: snap, error: snapErr } = await supabase
+    .from('upload_snapshots')
+    .insert({ upload_type: 'debt_schedule', file_name: filename, is_active: true })
+    .select()
+    .single();
+  if (snapErr) return { error: snapErr.message };
+  const sid = snap.id;
+  if (loans?.length) {
+    await supabase.from('debt_schedule').insert(
+      loans.map(l => ({ snapshot_id: sid, ...l }))
+    );
   }
   return { snapshotId: sid };
 }

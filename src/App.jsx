@@ -5,7 +5,8 @@ import {
   getPortfolio, getT12Monthly, getRentRoll, getBudget,
   getLeaseEvents, getExpiryProfile, getUploadHistory,
   getBalanceSheet, getSecurityDeposits,
-  insertManagementReport, insertRentRoll, insertBudget,
+  getDebtSchedule, getExpenseBreakdown,
+  insertManagementReport, insertRentRoll, insertBudget, insertDebtSchedule,
 } from './lib/dataService';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -15,6 +16,7 @@ import AskAIPanel from './components/AskAIPanel';
 import DataUpload from './components/DataUpload';
 import AdminPanel from './components/AdminPanel';
 import FloorplanView from './components/FloorplanView';
+import FinancialsViewExpanded from './components/FinancialsView';
 import LoginPage from './components/LoginPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -590,7 +592,7 @@ function Dashboard() {
   const refreshData = useCallback(async () => {
     if (!isConnected()) return;
     try {
-      const [p, t12, rr, bud, ev, exp, hist] = await Promise.all([
+      const [p, t12, rr, bud, ev, exp, hist, debt, expBreak] = await Promise.all([
         getPortfolio(),
         getT12Monthly(),
         getRentRoll(),
@@ -598,6 +600,8 @@ function Dashboard() {
         getLeaseEvents(),
         getExpiryProfile(),
         getUploadHistory(),
+        getDebtSchedule(),
+        getExpenseBreakdown(),
       ]);
       if (p) setProp(prev => ({ ...prev, ...p }));
       if (t12) setT12Data(t12);
@@ -606,6 +610,9 @@ function Dashboard() {
       if (ev) setEvents(ev);
       if (exp) setExpiryArr(exp);
       if (hist) setUploadHistory(hist);
+      // Merge debt & expense data into prop so FinancialsView can access it
+      if (debt) setProp(prev => ({ ...prev, debtSchedule: debt }));
+      if (expBreak) setProp(prev => ({ ...prev, expenseBreakdown: expBreak }));
       setDataMode('live');
     } catch (e) {
       console.warn('Supabase fetch failed, using static data:', e);
@@ -708,7 +715,7 @@ function Dashboard() {
         {tab === 'overview' && <OverviewView prop={prop} derived={derived} t12Data={t12Data} budgetData={budgetData} />}
         {tab === 'floorplan' && <FloorplanView leases={leases} />}
         {tab === 'leasing' && <LeasingView derived={derived} />}
-        {tab === 'financials' && <FinancialsView t12Data={t12Data} budgetData={budgetData} derived={derived} />}
+        {tab === 'financials' && <FinancialsViewExpanded prop={prop} t12Data={t12Data} budgetData={budgetData} derived={derived} leases={leases} />}
         {tab === 'events' && <EventsView events={events} />}
         {tab === 'data' && (role === 'owner' || role === 'admin') && (
           <div className="space-y-6">

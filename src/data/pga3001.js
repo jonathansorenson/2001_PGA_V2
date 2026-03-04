@@ -404,4 +404,94 @@ export const propertyData = {
       unit: "FIBER2",
     },
   ],
+
+  // ── Balance Sheet (Dec 2025 from NAI Merin Hunter Codman report) ──
+  balanceSheet: {
+    asOf: "2025-12-31",
+    assets: {
+      landAndBuilding: 29587412,
+      tenantImprovements: 1209436,
+      leasingCommissions: 279951,
+      cashAndEquivalents: 116381,
+      total: 31193180,
+    },
+    liabilities: {
+      accountsPayable: 68212,
+      accruedExpenses: 72440,
+      securityDeposits: 127282,
+      prepaidRent: 50000,
+      total: 317934,
+    },
+    equity: {
+      partnersCapital: 28774430,
+      currentYearEarnings: 2100816,
+      total: 30875246,
+    },
+  },
+
+  // ── Operating Expense Breakdown (YTD Dec 2025) ──
+  expenseBreakdown: [
+    { category: "Repairs & Maintenance", actual: 291108, budget: 264000 },
+    { category: "Utilities",             actual: 229672, budget: 240000 },
+    { category: "Insurance",             actual: 156595, budget: 160000 },
+    { category: "Property Taxes",        actual: 135616, budget: 138000 },
+    { category: "Management Fees",       actual: 94344,  budget: 93540 },
+    { category: "Janitorial",            actual: 73020,  budget: 78000 },
+    { category: "General & Admin",       actual: 63609,  budget: 91100 },
+  ],
+
+  // ── Debt & Capital (PLACEHOLDER — replace via ingestion pipeline) ──
+  debtSchedule: {
+    isPlaceholder: true,
+    loans: [
+      {
+        loanName: "Senior Mortgage",
+        lender: "TBD — Awaiting Loan Docs",
+        originalAmount: 18750000,
+        currentBalance: 17200000,
+        interestRate: 5.85,
+        rateType: "Fixed",
+        spread: null,
+        maturityDate: "2030-06-01",
+        originationDate: "2023-06-01",
+        amortization: "30-year",
+        isIO: false,
+        annualDebtService: 1327680,
+        monthlyPayment: 110640,
+        loanType: "CMBS",
+        prepaymentPenalty: "Yield maintenance through 2028",
+        rateCap: null,
+      },
+    ],
+    metrics: {
+      totalDebtOutstanding: 17200000,
+      ltv: 55.1,
+      ltc: null,
+      dscr: 1.54,
+      debtYield: 12.21,
+      icr: 2.09,
+      weightedAvgRate: 5.85,
+      annualDebtService: 1327680,
+    },
+  },
+
+  // ── Valuation (Calculated + PLACEHOLDER assumptions) ──
+  valuation: {
+    isPlaceholder: true,
+    bookValue: 31193180,
+    t12NOI: 2100816,
+    inPlaceCapRate: 6.74,
+    scenarios: [
+      { label: "Conservative",    capRate: 7.50, impliedValue: 28010880, perSF: 419.10 },
+      { label: "Current (Book)",   capRate: 6.74, impliedValue: 31193180, perSF: 466.69 },
+      { label: "Market Mid",       capRate: 6.50, impliedValue: 32320246, perSF: 483.56 },
+      { label: "Aggressive",       capRate: 5.75, impliedValue: 36535930, perSF: 546.61 },
+    ],
+    nav: 13993180,
+    equityInvested: 12500000,
+    equityMultiple: 1.12,
+    cashOnCash: 6.19,
+    leveragedIRR: null,
+    unleveredIRR: null,
+  },
 };

@@ -58,6 +58,20 @@ export async function extractBudget(file) {
   return res.json();
 }
 
+export async function extractDebtSchedule(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/api/extract/debt-schedule`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Extraction failed' }));
+    throw new Error(err.error || 'Failed to extract debt schedule');
+  }
+  return res.json();
+}
+
 export async function askAI(messages, context) {
   const res = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
